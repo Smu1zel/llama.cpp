@@ -8271,8 +8271,23 @@ static ggml_backend_buffer_t ggml_backend_opencl_buffer_type_alloc_buffer(ggml_b
     cl_int err;
     cl_mem mem = clCreateBuffer(backend_ctx->context, CL_MEM_READ_WRITE, size, NULL, &err);
     if (err != CL_SUCCESS && backend_ctx->adreno_use_large_buffer) {
-        cl_mem_properties props[] = { 0x41A6 /* CL_LARGE_BUFFER_QCOM */, 1, 0 };
-        mem = clCreateBufferWithProperties(backend_ctx->context, props, CL_MEM_READ_WRITE, size, NULL, &err);
+        typedef cl_mem (CL_API_CALL *clCreateBufferWithProperties_fn)(
+            cl_context context,
+            const cl_mem_properties* properties,
+            cl_mem_flags flags,
+            size_t size,
+            void* host_ptr,
+            cl_int* errcode_ret);
+        
+        clCreateBufferWithProperties_fn p_clCreateBufferWithProperties = 
+            (clCreateBufferWithProperties_fn) clGetExtensionFunctionAddress("clCreateBufferWithProperties");
+        
+        if (p_clCreateBufferWithProperties) {
+            cl_mem_properties props[] = { 0x41A6 /* CL_LARGE_BUFFER_QCOM */, 1, 0 };
+            mem = p_clCreateBufferWithProperties(backend_ctx->context, props, CL_MEM_READ_WRITE, size, NULL, &err);
+        } else {
+            GGML_LOG_INFO("%s: clCreateBufferWithProperties symbol not found, skipping large buffer allocation fallback\n", __func__);
+        }
     }
 
     if (err != CL_SUCCESS) {
