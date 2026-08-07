@@ -24,6 +24,21 @@
     #endif
 #endif
 
+// Android API < 23 doesn't provide posix_madvise / POSIX_MADV_*.
+// Fallback to the Linux-specific madvise() which should work on every Android version.
+#if defined(__ANDROID__) && __ANDROID_API__ < 23
+    #include <sys/mman.h>
+    #ifndef POSIX_MADV_WILLNEED
+        #define POSIX_MADV_WILLNEED  MADV_WILLNEED
+    #endif
+    #ifndef POSIX_MADV_RANDOM
+        #define POSIX_MADV_RANDOM    MADV_RANDOM
+    #endif
+    static inline int posix_madvise(void *addr, size_t len, int advice) {
+        return madvise(addr, len, advice) == 0 ? 0 : errno;
+    }
+#endif
+
 #if defined(_WIN32)
     #define WIN32_LEAN_AND_MEAN
     #ifndef NOMINMAX
